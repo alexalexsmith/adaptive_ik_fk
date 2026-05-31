@@ -10,7 +10,8 @@ except ModuleNotFoundError:
 from maya.api import OpenMaya
 from maya import cmds
 
-from adaptive_ik_fk.utilities import qt_utils, match_ik_fk_callback_utils, ik_fk_utils
+from adaptive_ik_fk.utilities import qt_utils, ik_fk_utils
+from adaptive_ik_fk import RESOURCES
 
 
 class AdaptiveIKFKUI(qt_utils.AbstractMayaToolWindow):
@@ -19,7 +20,7 @@ class AdaptiveIKFKUI(qt_utils.AbstractMayaToolWindow):
     """
     WINDOW_NAME = "AdaptiveIKFK"
     WINDOW_TITLE = "Adaptive IKFK"
-    STYLESHEET = None
+    STYLESHEET = f"{RESOURCES}/neon_sunset.qss"
 
     def __init__(self):
         super(AdaptiveIKFKUI, self).__init__()
@@ -55,7 +56,6 @@ class AdaptiveIKFKUI(qt_utils.AbstractMayaToolWindow):
         )
 
     def register_transform_callback(self, node_name):
-        global match_ik_fk_callback_id
 
         # Convert string name to MObject
         selection_list = OpenMaya.MSelectionList()
@@ -81,6 +81,9 @@ class AdaptiveIKFKUI(qt_utils.AbstractMayaToolWindow):
             return
 
         if ik_fk_utils.get_snap_nodes(selection[0]):
+            # make sure to match the position if it is not the active interpolation system
+            # We just want to adjust the current pose with the opposing system
+            ik_fk_utils.match_to_current_interpolation_setting(selection[0])
             self.register_transform_callback(selection[0])
         else:
             self.remove_attribute_changed_callback()

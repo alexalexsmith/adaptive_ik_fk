@@ -22,11 +22,11 @@ class AbstractMayaToolWindow(QtWidgets.QWidget):
     """
     WINDOW_NAME = "AbstractMayaQWidgetWindow"
     WINDOW_TITLE = "Abstract Maya Tool"
-    STYLESHEET = ""
+    STYLESHEET = None  # stylesheet path
 
     def __init__(self, parent=get_maya_main_widget()):
         # 1. Close existing duplicate window before spawning a new one
-        self.close_existing()
+        self._close_existing()
 
         # 2. Correctly initialize the QWidget base class
         super(AbstractMayaToolWindow, self).__init__(parent)
@@ -37,8 +37,7 @@ class AbstractMayaToolWindow(QtWidgets.QWidget):
         self.setWindowFlags(QtCore.Qt.Window)  # Makes it a standalone floating window
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)  # Cleans up memory on close
 
-        if self.STYLESHEET:
-            self.setStyleSheet(self.STYLESHEET)
+        self._set_style_sheet()
 
         # 4. Create a main layout for this widget to hold all child elements
         self.main_layout = QtWidgets.QVBoxLayout(self)
@@ -48,6 +47,16 @@ class AbstractMayaToolWindow(QtWidgets.QWidget):
         # 5. Trigger abstract workflow methods
         self.build_ui()
         self.socket_connections()
+
+    def _set_style_sheet(self):
+        """set the style sheet"""
+        if self.STYLESHEET is None:
+            return
+
+        file = QtCore.QFile(self.STYLESHEET)
+        file.open(QtCore.QFile.ReadOnly | QtCore.QFile.Text)
+        stream = QtCore.QTextStream(file)
+        self.setStyleSheet(stream.readAll())
 
     def build_ui(self):
         """
@@ -63,7 +72,7 @@ class AbstractMayaToolWindow(QtWidgets.QWidget):
         """
         raise NotImplementedError("The socket_connections() method must be implemented by the subclass.")
 
-    def close_existing(self):
+    def _close_existing(self):
         """
         Finds and closes any open windows sharing the same objectName.
         """

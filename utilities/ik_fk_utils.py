@@ -4,6 +4,8 @@ IK FK utilities
 from maya import cmds
 import maya.api.OpenMaya as om
 
+from adaptive_ik_fk.utilities import math_utils
+
 
 # NOTE: these are the names for advanced skeleton IK FK nodes
 IKFK_ARM_NODES = ("FKIKArm", "Shoulder", "Elbow", "Wrist", "PoleArm", "Arm")
@@ -29,6 +31,22 @@ def match_ik_fk(node):
         if control in node:
             match_ik_to_fk(node)
             break
+
+
+def match_to_current_interpolation_setting(node):
+    """
+    Match the node's ik or fk system to the active interpolation system. If the node's system is active do nothing
+    """
+    snap_nodes = get_snap_nodes(node)
+    if not snap_nodes:
+        return
+    switch_plug = get_switch_plug(node)
+    if not switch_plug:
+        return
+    if cmds.getAttr(switch_plug) == 10:
+        match_fk_to_ik(node)
+    if cmds.getAttr(switch_plug) == 0:
+        match_ik_to_fk(node)
 
 
 def match_ik_to_fk(node):
@@ -90,10 +108,23 @@ def match_fk_to_ik(node):
         #cmds.setKeyframe(ctrl_name)
 
 
-def set_ik_fk_interpolation(ik_fk):
+def get_switch_plug(node):
     """
-    Set the interpolation method using the ik_fk switch attribute plug
+    Get the IKFK switch plug path
     """
+    switch_plug = None
+    for snap_node in IKFK_ARM_NODES:
+        if snap_node in node:
+            switch_plug = IKFK_ARM_NODES[0]
+
+    for snap_node in IKFK_LEG_NODES:
+        if snap_node in node:
+            switch_plug = IKFK_LEG_NODES[0]
+    if switch_plug is None:
+        return None
+    namespace = get_namespace(node)
+    side = get_side(node)
+    return f"{namespace}:{switch_plug}_{side}.FKIKBlend"
 
 
 def get_snap_nodes(node):
@@ -171,40 +202,11 @@ def get_ik_matrix_offset_dict(node, side):
             return None
 
     # Build dict
-    ik_snap_matrix_dict = {}
-    ik_snap_matrix_dict["ik_matrix"] = get_matrices_offset_dict(ik_chain_bone, ik_control)
-    ik_snap_matrix_dict["pole_matrix"] = get_matrices_offset_dict(ik_pole_bone, pole_control)
-    ik_snap_matrix_dict["ik_control"] = ik_control
-    ik_snap_matrix_dict["pole_control"] = pole_control
-    ik_snap_matrix_dict["ik_control_snap_bone"] = ik_control_snap_bone
-    ik_snap_matrix_dict["pole_control_snap_bone"] = pole_control_snap_bone
+    ik_snap_matrix_dict = {"ik_matrix": math_utils.get_matrices_offset_dict(ik_chain_bone, ik_control),
+                           "pole_matrix": math_utils.get_matrices_offset_dict(ik_pole_bone, pole_control),
+                           "ik_control": ik_control, "pole_control": pole_control,
+                           "ik_control_snap_bone": ik_control_snap_bone,
+                           "pole_control_snap_bone": pole_control_snap_bone}
 
     return ik_snap_matrix_dict
 
-
-def get_matrices_offset_dict(parent, child):
-    """get the matrices offset dict
-    :param str parent: parent to relate offset to
-    :param list[str] children: children to compare
-    :return dict: each key, named child, holding the offset matrix"""
-
-    # Using open maya to do the matrix math to get the offset
-    parent_matrix = om.MMatrix(cmds.xform(parent, query=True, matrix=True, ws=True))
-    # Removing shear and scale from the calculation to avoid distortions
-    parent_transform = om.MTransformationMatrix(parent_matrix)
-    clean_parent_transform = om.MTransformationMatrix()
-    clean_parent_transform.setTranslation(parent_transform.translation(om.MSpace.kWorld), om.MSpace.kWorld)
-    clean_parent_transform.setRotation(parent_transform.rotation(asQuaternion=True))
-    clean_parent_matrix = clean_parent_transform.asMatrix()
-
-    child_matrix = om.MMatrix(cmds.xform(child, query=True, matrix=True, ws=True))
-    # Removing shear and scale from the calculation to avoid distortions
-    child_transform = om.MTransformationMatrix(child_matrix)
-    clean_child_transform = om.MTransformationMatrix()
-    clean_child_transform.setTranslation(child_transform.translation(om.MSpace.kWorld), om.MSpace.kWorld)
-    clean_child_transform.setRotation(child_transform.rotation(asQuaternion=True))
-    clean_child_matrix = clean_child_transform.asMatrix()
-
-    # calculating the offset
-    offset_mmatrix = clean_child_matrix * clean_parent_matrix.inverse()
-    return list(offset_mmatrix)
